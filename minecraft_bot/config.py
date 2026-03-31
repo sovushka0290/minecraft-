@@ -1,17 +1,17 @@
 import os
 from dotenv import load_dotenv
 
-# Загружаем переменные из .env файла (для локалки)
+# Загружаем .env для локальной разработки
 load_dotenv()
 
 # Токен бота
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
-# ID администратора
+# ID администратора (по умолчанию 0)
 ADMIN_ID = int(os.getenv("ADMIN_ID", 0))
 
-# Тот самый URL базы данных, который мы забыли
+# ТА САМАЯ ПЕРЕМЕННАЯ (её не хватало)
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Путь к SQLite (оставь на всякий случай, если где-то еще используется)
+# Путь к SQLite (если еще где-то нужен)
 DB_PATH = "database.db"
