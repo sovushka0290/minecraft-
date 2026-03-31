@@ -6,53 +6,78 @@ from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
+# Импорты твоих модулей
 from config import BOT_TOKEN
 from database.models import init_db
 from handlers import user, admin
 from services.scheduler_service import check_deadlines
 
-logging.basicConfig(level=logging.INFO)
+# Настройка логирования
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
+# --- Секция для Render (Web Service Support) ---
+async def handle_health_check(request):
+    """Ответ для Render, что сервис жив."""
+    return web.Response(text="Minecraft State Bot is running!", status=200)
 
-# --- Заглушка для Render (фиктивный веб-сервер) ---
-async def health_check(request):
-    return web.Response(text="Minecraft State Bot is alive and working!")
-
-async def start_web_server():
+async def run_dummy_server():
+    """Запуск легкого веб-сервера на фоне."""
     app = web.Application()
-    app.add_routes([web.get('/', health_check)])
+    app.router.add_get("/", handle_health_check)
     runner = web.AppRunner(app)
     await runner.setup()
     
-    # Render передает порт через переменную окружения PORT
-    port = int(os.getenv('PORT', 8080))
-    site = web.TCPSite(runner, '0.0.0.0', port)
+    # Render автоматически подставляет PORT, если нет — используем 10000
+    port = int(os.getenv("PORT", 10000)) 
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    
+    logger.info(f"🌐 Фиктивный сервер запущен на порту {port} (для Render)")
     await site.start()
-    logger.info(f"Dummy web server started on port {port} for Render")
-# --------------------------------------------------
 
-
+# --- Основная логика бота ---
 async def main():
-    await init_db()
+    logger.info("🚀 Запуск инициализации...")
 
-    # Запускаем наш веб-сервер перед ботом
-    await start_web_server()
+    # 1. Инициализация базы данных (PostgreSQL)
+    try:
+        await init_db()
+    except Exception as e:
+        logger.error(f"❌ Критическая ошибка при инициализации БД: {e}")
+        # Не останавливаем, если хотим проверить логи, но БД важна
+    
+    # 2. Запуск веб-сервера для прохождения Port Check на Render
+    await run_dummy_server()
 
+    # 3. Настройка бота и диспетчера
     bot = Bot(token=BOT_TOKEN)
     storage = MemoryStorage()
     dp = Dispatcher(storage=storage)
 
+    # Регистрируем роутеры
+    dp.include_router(admin.router) # Админские команды обычно приоритетнее
     dp.include_router(user.router)
-    dp.include_router(admin.router)
 
+    # 4. Настройка планировщика (APScheduler)
     scheduler = AsyncIOScheduler(timezone="UTC")
+    # Проверка дедлайнов каждый час
     scheduler.add_job(check_deadlines, "interval", hours=1, args=[bot])
     scheduler.start()
+    logger.info("⏰ Планировщик задач запущен")
 
-    logger.info("Бот запущен")
-    await dp.start_polling(bot, skip_updates=True)
-
+    # 5. Запуск Polling
+    logger.info("🤖 Бот вышел в онлайн!")
+    try:
+        await bot.delete_webhook(drop_pending_updates=True)
+        await dp.start_polling(bot)
+    finally:
+        await bot.session.close()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        logger.info("Бот остановлен")
