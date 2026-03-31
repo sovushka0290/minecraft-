@@ -1,17 +1,18 @@
 import os
 from dotenv import load_dotenv
 
-# Загружаем .env для локальной разработки
 load_dotenv()
 
-# Токен бота
+# Обязательные переменные
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-
-# ID администратора (по умолчанию 0)
-ADMIN_ID = int(os.getenv("ADMIN_ID", 0))
-
-# ТА САМАЯ ПЕРЕМЕННАЯ (её не хватало)
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Путь к SQLite (если еще где-то нужен)
-DB_PATH = "database.db"
+# Необязательные (с дефолтными значениями)
+ADMIN_ID = int(os.getenv("ADMIN_ID", 0))
+PORT = int(os.getenv("PORT", 10000))
+
+# Проверка на ошибки при старте
+if not BOT_TOKEN:
+    print("❌ ОШИБКА: Переменная BOT_TOKEN не установлена!")
+if not DATABASE_URL:
+    print("❌ ОШИБКА: Переменная DATABASE_URL не установлена!")
