@@ -1,38 +1,30 @@
 import aiosqlite
 from config import DB_PATH
 
+import asyncpg
+from config import DATABASE_URL
+
 async def get_or_create_user(telegram_id: int, username: str = None):
-    """Получает пользователя из базы или создает нового, если его нет."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
+    # Подключаемся к Postgres
+    conn = await asyncpg.connect(DATABASE_URL)
+    try:
+        # 1. Ищем юзера
+        user = await conn.fetchrow("SELECT * FROM users WHERE telegram_id = $1", telegram_id)
         
-        # 1. Сначала ищем пользователя
-        async with db.execute("SELECT * FROM users WHERE telegram_id = ?", (telegram_id,)) as cursor:
-            user = await cursor.fetchone()
-            if user:
-                return dict(user) # Если нашли, возвращаем как словарь
+        if user:
+            return dict(user)
         
-        # 2. Если не нашли, создаем нового (INSERT OR IGNORE на всякий случай)
-        await db.execute(
-            "INSERT OR IGNORE INTO users (telegram_id, username, role, reputation) VALUES (?, ?, ?, ?)",
-            (telegram_id, username, 'player', 0)
+        # 2. Если нет — создаем
+        await conn.execute(
+            "INSERT INTO users (telegram_id, username, role, reputation) VALUES ($1, $2, $3, $4) ON CONFLICT (telegram_id) DO NOTHING",
+            telegram_id, username, 'player', 0
         )
-        await db.commit()
         
-        # 3. Возвращаем только что созданного пользователя
-        async with db.execute("SELECT * FROM users WHERE telegram_id = ?", (telegram_id,)) as cursor:
-            user = await cursor.fetchone()
-            return dict(user) if user else None
-
-async def update_nickname(telegram_id: int, nickname: str):
-    """Обновляет никнейм игрока."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
-            "UPDATE users SET nickname = ? WHERE telegram_id = ?",
-            (nickname, telegram_id),
-        )
-        await db.commit()
-
+        # Получаем созданного
+        user = await conn.fetchrow("SELECT * FROM users WHERE telegram_id = $1", telegram_id)
+        return dict(user)
+    finally:
+        await conn.close()
 async def add_reputation(telegram_id: int, amount: int):
     """Добавляет или отнимает репутацию."""
     async with aiosqlite.connect(DB_PATH) as db:
