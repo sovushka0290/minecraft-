@@ -13,6 +13,10 @@ async def get_or_create_user(telegram_id: int, nickname: str = None) -> dict:
             return dict(user)
         nick = nickname or f"Player_{telegram_id}"
         await db.execute(
+    "INSERT INTO users (telegram_id, username) VALUES (?, ?)",
+    (telegram_id, username)
+)
+        await db.execute(
             "INSERT INTO users (telegram_id, nickname) VALUES (?, ?)",
             (telegram_id, nick),
         )
