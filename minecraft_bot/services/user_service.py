@@ -2,19 +2,28 @@ import aiosqlite
 from config import DB_PATH
 
 
-async def get_or_create_user(telegram_id: int, nickname: str = None) -> dict:
+import aiosqlite
+from config import DB_PATH # Убедись, что путь к БД импортируется
+
+async def get_or_create_user(telegram_id, username=None):
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
-        async with db.execute(
-            "SELECT * FROM users WHERE telegram_id = ?", (telegram_id,)
-        ) as cursor:
+        # 1. Сначала ищем пользователя
+        async with db.execute("SELECT * FROM users WHERE telegram_id = ?", (telegram_id,)) as cursor:
             user = await cursor.fetchone()
-        if user:
-            return dict(user)
-        nick = nickname or f"Player_{telegram_id}"
-       await db.execute(
-    "INSERT INTO users (telegram_id, username) VALUES (?, ?)",
-    (telegram_id, username)
+            if user:
+                return user # Если нашли, просто возвращаем его
+        
+        # 2. Если не нашли, создаем нового
+        await db.execute(
+            "INSERT INTO users (telegram_id, username, role, reputation) VALUES (?, ?, ?, ?)",
+            (telegram_id, username, 'player', 0)
+        )
+        await db.commit()
+        
+        # Возвращаем созданного пользователя
+        async with db.execute("SELECT * FROM users WHERE telegram_id = ?", (telegram_id,)) as cursor:
+            return await cursor.fetchone()
 )
         )
         await db.commit()
